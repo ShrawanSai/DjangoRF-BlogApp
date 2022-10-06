@@ -13,7 +13,6 @@ services:
             - ./mediafiles:/app/mediafiles
         expose:
             - "8000"
-    
         env_file:
             - ./.envs/.local/.django
             - ./.envs/.local/.postgres
@@ -22,8 +21,8 @@ services:
             - mailhog
         networks:
             - medium-rebuild
-        ports:
-            - "8000:8000"
+        
+
 
     postgres:
         build:
@@ -43,6 +42,21 @@ services:
         container_name: mailhog
         ports:
             - "8025:8025" 
+        networks:
+            - medium-rebuild
+    
+    nginx:
+        restart: always
+        depends_on:
+            - api
+        volumes:
+            - ./staticfiles:/app/staticfiles
+            - ./mediafiles:/app/mediafiles
+        build:
+            context: ./docker/local/nginx
+            dockerfile: Dockerfile
+        ports:
+            - "8080:80"
         networks:
             - medium-rebuild
 
