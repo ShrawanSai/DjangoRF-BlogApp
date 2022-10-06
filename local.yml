@@ -19,6 +19,7 @@ services:
         depends_on:
             - postgres
             - mailhog
+            - redis
         networks:
             - medium-rebuild
         
@@ -45,6 +46,49 @@ services:
         networks:
             - medium-rebuild
     
+    redis:
+        image: redis:6-alpine
+        container_name: redis
+        networks:
+            - medium-rebuild
+    
+    celery_worker:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+        command: /start-celeryworker
+        container_name: celery_worker
+        volumes:
+            - .:/app
+        env_file:
+            - ./.envs/.local/.django
+            - ./.envs/.local/.postgres
+        depends_on:
+            - redis
+            - postgres
+            - mailhog
+        networks:
+            - medium-rebuild
+
+    flower:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+        command: /start-flower
+        container_name: flower
+        volumes:
+            - .:/app
+        env_file:
+            - ./.envs/.local/.django
+            - ./.envs/.local/.postgres
+        ports:
+            - "5555:5555"
+        depends_on:
+            - redis
+            - postgres
+        networks:
+            - medium-rebuild
+
     nginx:
         restart: always
         depends_on:
@@ -59,7 +103,6 @@ services:
             - "8080:80"
         networks:
             - medium-rebuild
-
 
 networks:
     medium-rebuild:
