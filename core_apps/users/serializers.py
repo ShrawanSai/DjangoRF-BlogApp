@@ -13,6 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
     profile_photo = serializers.ReadOnlyField(source="profile.profile_photo")
     country = CountryField(source="profile.country")
     city = serializers.CharField(source="profile.city")
+    date_of_birth = serializers.DateField(source="profile.date_of_birth")
     first_name = serializers.SerializerMethodField()
     last_name = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
@@ -22,7 +23,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
-            "phone_number"
+            "phone_number",
             "first_name",
             "last_name",
             "full_name",
@@ -30,6 +31,7 @@ class UserSerializer(serializers.ModelSerializer):
             "profile_photo",
             "country",
             "city",
+            'date_of_birth'
         ]
 
     def get_first_name(self, obj):

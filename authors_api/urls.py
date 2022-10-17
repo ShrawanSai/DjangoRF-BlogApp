@@ -20,10 +20,12 @@ schema_view = get_schema_view(
 
 
 urlpatterns = [
-    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-swagger-ui"),
+    path("", schema_view.with_ui("swagger", cache_timeout=0), name="schema-redoc"),
     path(settings.ADMIN_URL, admin.site.urls),
     path("api/v1/auth/", include("djoser.urls")),
     path("api/v1/auth/", include("djoser.urls.jwt")),
+    path("api/v1/profiles/", include("core_apps.profiles.urls")),
 
 ]
 
