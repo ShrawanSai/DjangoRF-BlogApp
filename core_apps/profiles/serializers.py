@@ -29,6 +29,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "country",
             "city",
             "date_of_birth",
+            "others_field",
         ]
 
     def get_full_name(self, obj):
@@ -51,6 +52,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "gender",
             "country",
             "city",
+            "others_field",
         ]
 
 

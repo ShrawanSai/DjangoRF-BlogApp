@@ -8,7 +8,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .exceptions import NotYourProfile
+from .exceptions import NotYourProfile,FailedUpateProfile
 from .models import Profile
 from .pagination import ProfilePagination
 from .renderers import ProfileJSONRenderer, ProfilesJSONRenderer
@@ -80,5 +80,9 @@ class UpdateProfileAPIView(APIView):
             instance=request.user.profile, data=data, partial=True
         )
         if serializer.is_valid():
+            #print('serializer.data')
             serializer.save()
+        else:
+            #print(serializer)
+            return Response(serializer.errors, status=status.HTTP_200_OK)
         return Response(serializer.data, status=status.HTTP_200_OK)

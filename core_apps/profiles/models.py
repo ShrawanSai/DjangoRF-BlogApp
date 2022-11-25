@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django_countries.fields import CountryField
 from phonenumber_field.modelfields import PhoneNumberField
 import datetime
+from jsonfield import JSONField
 
 from core_apps.common.models import TimeStampedUUIDModel
 
@@ -36,6 +37,15 @@ class Profile(TimeStampedUUIDModel):
         verbose_name=_("profile photo"), default="/profile_default.png"
     )
     date_of_birth = models.DateField(max_length=8, null=True)
+
+    #others_field = JSONField(null=True)
+
+    """others_field = models.CharField(
+        verbose_name=_("others"),
+        max_length=180,
+        blank=False,
+        null=False,
+    )"""
 
     def __str__(self):
         return f"{self.user.first_name}'s profile"

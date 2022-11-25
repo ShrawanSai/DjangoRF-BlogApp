@@ -15,8 +15,9 @@ from datetime import timedelta
 import environ
 import os
 
-
 env = environ.Env()
+environ.Env.read_env()
+#env = environ.Env()
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -54,7 +55,8 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "core_apps.common",
     "core_apps.users",
-    "core_apps.profiles"
+    "core_apps.profiles",
+    "core_apps.events",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -103,14 +105,16 @@ WSGI_APPLICATION = 'authors_api.wsgi.application'
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 
-'''
-DATABASES = {
+
+"""DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(ROOT_DIR, 'db.sqlite3'),
     }
 }
-'''
+CELERY_BROKER=env('CELERY_BROKER')
+CELERY_BACKEND=env('CELERY_BROKER')"""
+
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
@@ -122,6 +126,7 @@ PASSWORD_HASHERS = [
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -207,7 +212,7 @@ SIMPLE_JWT = {
         "Bearer",
         "JWT",
     ),
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=90),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "SIGNING_KEY": env("SIGNING_KEY"),
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
