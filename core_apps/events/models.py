@@ -53,7 +53,7 @@ class Event(TimeStampedUUIDModel):
         verbose_name=_("banner image"),
         default="/profile_default.png"
     )
-
+ 
     start_timestamp = models.DateTimeField(null=True, blank = True)
     end_timestamp = models.DateTimeField(null=True, blank = True)
     created_timestamp = models.DateTimeField(auto_now_add = True)

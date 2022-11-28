@@ -7,7 +7,7 @@ from .views import (
     get_rsvps_list,join_via_rsvp_code,
     MediaCreateAPIView, MultipleMediaUploader,  MediaDetailAPIView, AlbumCreateListAPIView, AlbumDetailAPIView, approve_an_item,
     like_media, edit_carousel_list,
-    WishCreateListAPIView
+    WishCreateListAPIView, WishDetailAPIView
 )
 
 urlpatterns = [
@@ -45,6 +45,7 @@ urlpatterns = [
     ## Wishes ##
 
     path("eventid/<slug:slug>/wishes/", WishCreateListAPIView.as_view(), name="wish-list-create"),
+    path("eventid/<slug:slug>/wishes/<slug:id>/", WishDetailAPIView.as_view(), name="wishes-detail"),
 
 ]
 

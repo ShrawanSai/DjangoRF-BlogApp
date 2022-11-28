@@ -27,3 +27,11 @@ class MediaNotPartofEvent(APIException):
 class AlbumNotAvailable(APIException):
     status_code = 403
     default_detail = "You can't access this album as it does not belong to you or it is not approved"
+
+class NotYourWish(APIException):
+    status_code = 403
+    default_detail = "You can't access this as the wish doesn't belong to you!"
+
+class WishNotPartofEvent(APIException):
+    status_code = 403
+    default_detail = "This wish does not belong to this event"

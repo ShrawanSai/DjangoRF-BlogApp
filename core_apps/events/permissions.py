@@ -90,3 +90,23 @@ class AlbumViewer(permissions.BasePermission):
                     return True
         #print("This should not be working")
         return False
+
+class WishViewer(permissions.BasePermission):
+    message = (
+        "You do not have access to View this Wish"
+    )
+
+    def has_object_permission(self, request, view, obj):
+        #print('im in')
+        if obj.event.creator == request.user or request.user in obj.event.hosts.all():
+            return True
+
+        if obj.wisher == request.user:
+            return True
+            
+        if obj.event.invite_event.filter(invitee = request.user).exists():
+            if obj.is_approved:
+                if request.method in permissions.SAFE_METHODS:
+                    return True
+        
+        return False

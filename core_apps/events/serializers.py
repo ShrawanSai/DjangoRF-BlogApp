@@ -355,8 +355,11 @@ class WishSerializer(serializers.ModelSerializer):
         "id",
         "wish_message",
         "wisher_info",
+        "wish_by",
         "image_url",
+        "wish_image",
         "video_url",
+        "wish_video",
         "is_video",
         "created_at",
         "event_details",
@@ -372,17 +375,16 @@ class WishSerializer(serializers.ModelSerializer):
 
     def get_image_url(self, obj):
         if obj.is_video is None:
+            print('here1')
             return None
         if not obj.is_video:
-            print('eririririririri')
-            print(dir(obj))
-            print(obj.wish_image)
             # all_fields = Wish._meta.get_fields()
             # #print([obj.i.name for i in all_fields])
             # print('_'*200)
            
-            return obj.wish_image
+            return obj.wish_image.url
         else:
+            print('here2')
             return None
 
     def get_video_url(self, obj):
