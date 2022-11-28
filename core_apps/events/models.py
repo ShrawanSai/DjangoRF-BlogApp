@@ -174,7 +174,6 @@ class Album(TimeStampedUUIDModel):
     )
     created_timestamp = models.DateTimeField(auto_now_add = True)
     is_approved = models.BooleanField(default = False)
-    file_count = models.PositiveSmallIntegerField(default = 0)
     download_count = models.PositiveSmallIntegerField(default = 0)
 
 
@@ -211,6 +210,7 @@ class Media(TimeStampedUUIDModel):
     created_timestamp = models.DateTimeField(auto_now_add = True)
     is_approved = models.BooleanField(default = False)
     is_video = models.BooleanField(default = False)
+    is_carousel = models.BooleanField(default = False)
 
     album = models.ForeignKey(
         Album,
@@ -238,4 +238,41 @@ class Media(TimeStampedUUIDModel):
     def __str__(self):
         return f"{self.id} by {self.poster.first_name} | {self.event}"
 
+class Wish(TimeStampedUUIDModel):
+
+    class Meta:
+        verbose_name_plural = "wishes"
+
+    wish_message = models.TextField(max_length = 500)
+    wish_by = models.CharField(verbose_name=_("Wish by Line"), max_length=200,null=True, blank = True)
+
+    wish_image = models.ImageField(
+        #verbose_name=_("Optional image for Wish"),
+        null=True, blank = True
+    )
+    wish_video = models.FileField(
+        #verbose_name=_("Optional video for Wish"),
+        null=True, blank = True
+    )
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name = "wish_event"
+    )
+
+    created_timestamp = models.DateTimeField(auto_now_add = True)
+    is_approved = models.BooleanField(default = False)
+    is_video = models.BooleanField(null=True, default=None)
+
+    wisher = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name = "wish_madeby"
+    )
+
+    others = JSONField(null=True, blank = True)
+
+    def __str__(self):
+        return f"{self.id} by {self.wisher.first_name} | {self.event}"
 

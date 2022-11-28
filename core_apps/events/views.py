@@ -13,15 +13,28 @@ from rest_framework.views import APIView
 import django.utils.timezone as tz
 
 #from .exceptions import NotYourProfile,FailedUpateProfile
-from .models import Event,Invitee, Invitation, Media, Album
+from .models import Event,Invitee, Invitation, Media, Album, Wish
 #from .pagination import ProfilePagination
 #from .renderers import ProfileJSONRenderer, ProfilesJSONRenderer
-from .serializers import EventCreateSerializer,EventSerializer,InviteSerializer,MyInvitesSerializer,InvitationSerializer,MediaSerializer
-from .permissions import IsOwnerOrReadOnly, IsOwner, IsOwnerofInviteeObj, IsReceiverofInviteeObj,IsOwnerofInvitationObj,MediaViewer
-from .exceptions import NotYourEvent,InviteeNotFound
+from .serializers import EventCreateSerializer,EventSerializer,InviteSerializer,MyInvitesSerializer,InvitationSerializer,MediaSerializer,AlbumSerializer, WishSerializer
+from .permissions import IsOwnerOrReadOnly, IsOwner, IsOwnerofInviteeObj, IsReceiverofInviteeObj,IsOwnerofInvitationObj,MediaViewer,AlbumViewer
+from .exceptions import NotYourEvent,InviteeNotFound, NotYourMedia, NotYourAlbum, AlbumNotAvailable, AlbumNotPartofEvent, MediaNotPartofEvent
 
 User = get_user_model()
 
+
+def check_if_user_invited(event,request):
+    invited_or_owner = False
+    if event.creator == request.user or request.user in event.hosts.all():
+        invited_or_owner = True
+    for i in Invitee.objects.filter(event = event):
+        if i.invitee == request.user:
+            invited_or_owner = True
+            break
+    if not invited_or_owner:
+        raise NotYourEvent
+    else:
+        return True
 
 def refresh_check_for_new_invites():
     invitee_records = Invitee.objects.all()
@@ -145,7 +158,7 @@ class InviteeCreateAPIView(generics.CreateAPIView):
                 except Exception as e:
                     print(e)
                 record["event"] = event.pkid
-            print(data)
+            #print(data)
             serializer = self.serializer_class(data=data, context={"request": request}, many=True)
             serializer.is_valid(raise_exception=True)
             serializer.save(inviter=self.request.user)
@@ -199,7 +212,7 @@ class InviteeDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
                 serializer = self.serializer_class(data=request.data, partial=True, instance = Invitee.objects.filter(id = invitee_id)[0])
 
                 if not serializer.is_valid(raise_exception=True):
-                    print(serializer.errors)
+                    #print(serializer.errors)
                     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                 serializer.save(inviter=self.request.user)
                 return Response(serializer.data, status=status.HTTP_200_OK)
@@ -347,7 +360,7 @@ def join_via_rsvp_code(request):
         try:
             event = Event.objects.filter(rsvp_code = request.data['rsvp_code'])[0]
         except Exception as e:
-            print(e)
+           
             raise NotFound("No event found")
         try:
             if 'name' in request.data:
@@ -365,10 +378,10 @@ def join_via_rsvp_code(request):
             else:
                 email = request.user.email    
             invitee_id = request.user.pkid
-            print(invitee_id)
+           
             rsvp_status = request.data['rsvp_status']
             inviter_id = event.creator
-            print(inviter_id,'234569876543')
+     
             invite_medium = "RSVP_code"
             if 'rsvp_message' in request.data:
                 rsvp_message = request.data['rsvp_message']
@@ -378,7 +391,7 @@ def join_via_rsvp_code(request):
             guest_count = request.data['guest_count']
             rsvp_timestamp = tz.localtime()
             sent_timestamp = rsvp_timestamp
-            print('11111234569876543')
+        
             data = {
                 "name" : name,
                 "invitee_phonenumber" : invitee_phonenumber,
@@ -439,35 +452,122 @@ class MediaCreateAPIView(generics.ListCreateAPIView):
 
         for i in Invitee.objects.filter(event = event):
             if i.invitee == self.request.user:
-                return Media.objects.filter(event = event, is_approved = True)
+                return (Media.objects.filter(event = event, is_approved = True) | Media.objects.filter(event = event, poster = self.request.user)).distinct()
         else:
-            return NotYourEvent
+            raise NotYourEvent
 
 
     def create(self, request, *args, **kwargs):
         #print('creating')
         eventcode = self.kwargs['slug']
         event = Event.objects.get(slug = eventcode)
-        creator_user = request.user
-        data = request.data
-        data["poster"] = creator_user.pkid
-        data["event"] = event.pkid
-        #print(data)
-        if 'image' in request.FILES:
-            if request.FILES['image']:
-                data["is_video"] = False
+
+
+        if check_if_user_invited(event,self.request):
+            creator_user = request.user
+            data = request.data
+            data["poster"] = creator_user.pkid
+            data["event"] = event.pkid
+
+            if "album" in data:
+      
+                album = Album.objects.get(id = data["album"])
+                if album.is_approved or album.creator == self.request.user:
+                    data["album"] = album.pkid
+                    data["is_approved"] = album.is_approved
+                else:
+                    raise AlbumNotAvailable
             else:
-                data["is_video"] = True
+                album = None
+
+
+            if 'image' in request.FILES:
+                if request.FILES['image']:
+                    data["is_video"] = False
+                else:
+                    data["is_video"] = True
+            elif 'video' in request.FILES:
+                if request.FILES['video']:
+                    data["is_video"] = True
+                else:
+                    data["is_video"] = False
+
+
+            
+            serializer = self.serializer_class(data=data, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
-            if request.FILES['video']:
-                data["is_video"] = True
+            raise NotYourEvent
 
+class MultipleMediaUploader(APIView):
+    permission_classes = [
+        permissions.IsAuthenticated,MediaViewer
+    ]
+    serializer_class = MediaSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ["poster__email"]
+
+    def post(self, request, *args, **kwargs):
         
-        serializer = self.serializer_class(data=data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if check_if_user_invited(event,self.request):
+            creator_user = request.user
+            data = request.data
+            #data["poster"] = creator_user.pkid
+            #data["event"] = event.pkid
+            sent_request = []
+            if "album" in data:
+        
+                album = Album.objects.get(id = data["album"])
+                #print(album)
+                if album.is_approved or album.creator == self.request.user:
+                    album_approval = album.is_approved
+                    album = album.pkid
+                    
+                else:
+                    raise AlbumNotAvailable
+            else:
+                album = None
+                album_approval = None
+            
+            
+            if 'image' in request.FILES:
+                for record in request.FILES.getlist('image'):
+                    sent_request.append({
+                        "image":record,
+                        "poster"  : creator_user.pkid,
+                        "event" : event.pkid,
+                        "is_video" : False,
+                        "album" : album,
+                        "is_approved" : album_approval
+
+                    })
+
+
+            elif 'video' in request.FILES:
+                for record in request.FILES.getlist('video'):
+                    sent_request.append({
+                        "video":record,
+                        "poster"  : creator_user.pkid,
+                        "event" : event.pkid,
+                        "is_video" : True,
+                        "album" : album,
+                        "is_approved" : album_approval
+
+                    })
+            else:
+                return Response({"error":"invalid file type"}, status=status.HTTP_403_FORBIDDEN)
+
+            serializer = self.serializer_class(data=sent_request, many = True, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         
 class MediaDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MediaSerializer
@@ -477,4 +577,383 @@ class MediaDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Media.objects.all()
     lookup_field = "id"
 
+    def patch(self, request, *args, **kwargs):
+        media_id = self.kwargs['id']
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+        media = Media.objects.get(id = media_id)
 
+        if media.poster == self.request.user or event.creator == request.user or request.user in event.hosts.all():
+
+            creator_user = request.user
+            data = request.data
+            data["poster"] = creator_user.pkid
+            data["event"] = event.pkid
+
+            if "album" in data:
+                album = Album.objects.get(id = data["album"])
+                if album.is_approved or album.creator == self.request.user:
+                    data["album"] = album.pkid
+                    data["is_approved"] = album.is_approved
+                else:
+                    raise AlbumNotAvailable
+
+
+            if 'image' in request.FILES:
+                if request.FILES['image']:
+                    data["is_video"] = False
+                else:
+                    data["is_video"] = True
+            elif 'video' in request.FILES:
+                if request.FILES['video']:
+                    data["is_video"] = True
+                else:
+                    data["is_video"] = False
+
+            serializer = self.serializer_class(data=data, instance = Media.objects.get(id = media_id))
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            raise NotYourMedia
+
+
+
+class AlbumCreateListAPIView(generics.ListCreateAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = AlbumSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ["creator__email"]
+
+    def get_queryset(self):
+
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+
+        if event.creator == self.request.user or self.request.user in event.hosts.all():
+            return Album.objects.filter(event = event)
+
+        for i in Invitee.objects.filter(event = event):
+            if i.invitee == self.request.user:
+
+                return (Album.objects.filter(event = event, is_approved = True) | Album.objects.filter(event = event, creator = self.request.user)).distinct()
+        else:
+            raise NotYourEvent
+
+
+    def create(self, request, *args, **kwargs):
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+        #print(event.creator)
+        if check_if_user_invited(event,self.request):
+            creator_user = request.user
+            data = request.data
+            data["creator"] = creator_user.pkid
+            data["event"] = event.pkid
+
+            if "thumbnail" in data:
+                data["thumbnail"] = Media.objects.get(id = data["thumbnail"]).pkid
+            serializer = self.serializer_class(data=data, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save(creator = creator_user )
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            raise NotYourEvent
+
+class AlbumDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AlbumSerializer
+    permission_classes = [
+        permissions.IsAuthenticated, AlbumViewer
+    ]
+    queryset = Album.objects.all()
+    lookup_field = "id"
+
+    def patch(self, request, *args, **kwargs):
+        album_id = self.kwargs['id']
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+        album = Album.objects.get(id = album_id)
+        if album.creator == self.request.user or event.creator == request.user or request.user in event.hosts.all():
+            creator_user = request.user
+            data = request.data
+            data["creator"] = creator_user.pkid
+            data["event"] = event.pkid
+
+            if "thumbnail" in data:
+                try:
+                    if data["thumbnail"] is not None:
+                        data["thumbnail"] = Media.objects.get(id = data["thumbnail"]).pkid
+                except Exception as e:
+                    raise NotFound("That media id does not exist")
+
+            if "is_approved" in data:
+                medias = Media.objects.filter(album = album)
+                for m in medias:
+                    m.is_approved = data["is_approved"]
+                    m.save()
+            serializer = self.serializer_class(data=data,partial = True, instance = Album.objects.get(id = album_id))
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            raise NotYourAlbum
+
+def get_album_object(obj_id):
+    try:
+        return Album.objects.get(id=obj_id)
+    except (Album.DoesNotExist):
+        raise status.HTTP_400_BAD_REQUEST
+
+def get_media_object(obj_id):
+    try:
+        return Media.objects.get(id=obj_id)
+    except (Media.DoesNotExist):
+        raise status.HTTP_400_BAD_REQUEST
+
+
+def validate_album_media_ids(id_list,event,album = True):
+    if album:
+        for id in id_list:
+            try:
+                album = Album.objects.get(id=id)
+                if album.event != event:
+                    raise AlbumNotPartofEvent
+            except (Album.DoesNotExist):
+                raise status.HTTP_400_BAD_REQUEST
+        return True
+    else:
+        for id in id_list:
+            try:
+                media = Media.objects.get(id=id)
+                if media.event != event:
+                    raise MediaNotPartofEvent
+            except (Media.DoesNotExist):
+                raise status.HTTP_400_BAD_REQUEST
+        return True
+
+
+
+@api_view(['PATCH'])
+@permission_classes((permissions.IsAuthenticated,))
+def approve_an_item(request,slug):
+    if request.method == 'PATCH':
+        event = Event.objects.get(slug = slug)
+        data = request.data
+        if "is_approved" not in data:
+            raise NotFound("New approval status not metioned")
+        else:
+            approval_status = data["is_approved"]
+
+        if event.creator == request.user or request.user in event.hosts.all():
+            album_serializer = None
+            media_serializer = None
+            if 'albums' in request.data:
+                album_id_list = request.data['albums']
+                validate_album_media_ids(id_list=album_id_list,event = event, album = True)
+                instances = []
+                for id in album_id_list:
+                    obj = get_album_object(obj_id=id)
+                    obj.is_approved = approval_status
+                    medias = Media.objects.filter(album = obj)
+                    for m in medias:
+                        m.is_approved = approval_status
+                        m.save()
+                    obj.save()
+                    instances.append(obj)
+                album_serializer = AlbumSerializer(instances, many=True, partial = True)
+
+            if 'medias' in request.data:
+                medias_id_list = request.data['medias']
+                validate_album_media_ids(id_list=medias_id_list, event = event ,album=False)
+                instances = []
+                for id in medias_id_list:
+                    obj = get_media_object(obj_id=id)
+                    obj.is_approved = approval_status
+                    obj.save()
+                    instances.append(obj)
+                media_serializer = MediaSerializer(instances, many=True, partial = True)
+            responses = {}
+            if album_serializer:
+                responses.update({'albums': album_serializer.data})
+            if media_serializer:
+                responses.update({'medias': media_serializer.data})
+            return Response(responses, status=status.HTTP_200_OK)
+        else:
+            raise NotYourEvent
+    
+
+@api_view(['PATCH','GET'])
+@permission_classes((permissions.IsAuthenticated,))
+def like_media(request,slug,id):
+
+    if request.method == 'GET':
+        event = Event.objects.get(slug = slug)
+        media = Media.objects.get(id = id)
+
+        if check_if_user_invited(event,request):
+
+            liked_by_user = False
+            if request.user in media.liked_by.all():
+                liked_by_user = True
+            return Response({"user_like_status" : liked_by_user, "likes_count": len(media.liked_by.all()) ,"likers" : [user.get_full_name for user in media.liked_by.all()]},status=status.HTTP_200_OK)
+        else:
+            raise NotYourEvent
+
+
+
+    if request.method == 'PATCH':
+        event = Event.objects.get(slug = slug)
+        media = Media.objects.get(id = id)
+        like_status = request.data["like_status"]
+
+        if check_if_user_invited(event,request):
+
+            if not like_status:
+                if request.user in media.liked_by.all():
+                    media.liked_by.remove(request.user)
+                    media.save()
+                    return Response({"like_status" : f"{request.user.get_full_name} no longer likes this media object"}, status=status.HTTP_200_OK)
+                else:
+                    return Response({"like_status" : f"{request.user.get_full_name} does not like this media object"}, status=status.HTTP_200_OK)
+            else:
+                if request.user not in media.liked_by.all():
+                    media.liked_by.add(request.user)
+                    media.save()
+                    return Response({"like_status" : f"{request.user.get_full_name} now likes this media"}, status=status.HTTP_200_OK)
+                else:
+                    return Response({"like_status" : f"{request.user.get_full_name} already likes this media object"}, status=status.HTTP_200_OK)
+        else:
+            raise NotYourEvent
+
+@api_view(['PATCH','GET'])
+@permission_classes((permissions.IsAuthenticated,))
+def edit_carousel_list(request,slug):
+    if request.method == 'PATCH':
+        event = Event.objects.get(slug = slug)
+        data = request.data
+        if "is_carousel" not in data:
+            raise NotFound("New carousel status not metioned")
+        else:
+            carousel_status = data["is_carousel"]
+
+        if event.creator == request.user or request.user in event.hosts.all():
+            if 'medias' in request.data:
+                medias_id_list = request.data['medias']
+                validate_album_media_ids(id_list=medias_id_list,event = event, album=False)
+                for id in medias_id_list:
+                    obj = get_media_object(obj_id=id)
+                    obj.is_carousel = carousel_status
+                    
+                    if obj.is_carousel:
+                        obj.is_approved = True
+                    obj.save()
+                return Response({"medias" : medias_id_list, "is_carousel" : carousel_status}, status=status.HTTP_200_OK)
+            raise NotFound("Media list not metioned")
+        raise NotYourEvent
+    
+    if request.method == 'GET':
+        event = Event.objects.get(slug = slug)
+        if check_if_user_invited(event,request):
+            carousel_images = Media.objects.filter(is_carousel = True)
+            return Response({"carousel_images" : [i.id for i in carousel_images], "carousel_count": len(carousel_images)},status=status.HTTP_200_OK)
+        else:
+            raise NotYourEvent
+
+########## Wishes ####################
+
+class WishCreateListAPIView(generics.ListCreateAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = WishSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ["wisher__email"]
+
+    def get_queryset(self):
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+
+        if event.creator == self.request.user or self.request.user in event.hosts.all():
+            return Wish.objects.filter(event = event)
+
+        for i in Invitee.objects.filter(event = event):
+            if i.invitee == self.request.user:
+                return (Wish.objects.filter(event = event, is_approved = True) | Wish.objects.filter(event = event, wisher = self.request.user)).distinct()
+        else:
+            raise NotYourEvent
+
+    def create(self, request, *args, **kwargs):
+        #print('creating')
+        eventcode = self.kwargs['slug']
+        event = Event.objects.get(slug = eventcode)
+
+
+        if check_if_user_invited(event,self.request):
+            creator_user = request.user
+            data = request.data
+            data["wisher"] = creator_user.pkid
+            data["event"] = event.pkid
+
+            # if 'wish_image' in request.FILES:
+            #     if request.FILES['wish_image']:
+            #         data["is_video"] = False
+            #     else:
+            #         data["is_video"] = False
+            # elif 'wish_video' in request.FILES:
+            #     if request.FILES['wish_video']:
+            #         data["is_video"] = True
+            #     else:
+            #         data["is_video"] = False
+            # else:
+            #     data["is_video"] = False
+
+            
+            serializer = self.serializer_class(data=data, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            print(serializer)
+            serializer.save(event = event,wisher = creator_user)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            raise NotYourEvent
+
+    # def create(self, request, *args, **kwargs):
+    #     eventcode = self.kwargs['slug']
+    #     event = Event.objects.get(slug = eventcode)
+
+
+    #     if check_if_user_invited(event,self.request):
+    #         creator_user = request.user
+    #         data = request.data
+    #         data["wisher"] = creator_user.pkid
+    #         data["event"] = event.pkid
+
+    #         if 'wish_image' in request.FILES:
+    #             if request.FILES['wish_image']:
+    #                 data["is_video"] = False
+    #                 data['wish_image'] = request.FILES['wish_image']
+    #             else:
+    #                 data["is_video"] = None
+    #         elif 'wish_video' in request.FILES:
+    #             if request.FILES['wish_video']:
+    #                 data["is_video"] = True
+    #             else:
+    #                 data["is_video"] = None
+
+    #         print(data)
+    #         print(type(request.FILES['wish_image']))
+
+    #         serializer = self.serializer_class(data=data, context={"request": request},  files = request.FILES.get('wish_image', None))
+    #         if serializer.is_valid(raise_exception=True):
+    #                 print(data)
+    #         serializer.is_valid(raise_exception=True)
+    #         serializer.save(event = event,wisher = creator_user)
+
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #     else:
+    #         raise NotYourEvent

@@ -5,7 +5,9 @@ from .views import (
     InviteeCreateAPIView,InviteeDetailAPIView,MyHostedEventListAPIView,MyInvites, MyInviteDetailAPIView,
     SendInvitesForMyEvent,InvitationDetail, 
     get_rsvps_list,join_via_rsvp_code,
-    MediaCreateAPIView, MediaDetailAPIView
+    MediaCreateAPIView, MultipleMediaUploader,  MediaDetailAPIView, AlbumCreateListAPIView, AlbumDetailAPIView, approve_an_item,
+    like_media, edit_carousel_list,
+    WishCreateListAPIView
 )
 
 urlpatterns = [
@@ -28,8 +30,22 @@ urlpatterns = [
 
 
     ## Gallery ####
-    path("eventid/<slug:slug>/media/", MediaCreateAPIView.as_view(), name="create-new"),
-    path("eventid/<slug:slug>/media/<slug:id>/", MediaDetailAPIView.as_view(), name="media=detail"),
+    path("eventid/<slug:slug>/media/", MediaCreateAPIView.as_view(), name="media-list-create"),
+    path("eventid/<slug:slug>/multiple-media-upload/", MultipleMediaUploader.as_view(), name="media-multiple-create"),
+    path("eventid/<slug:slug>/media/<slug:id>/", MediaDetailAPIView.as_view(), name="media-detail"),
+
+    path("eventid/<slug:slug>/album/", AlbumCreateListAPIView.as_view(), name="album-list-create"),
+    path("eventid/<slug:slug>/album/<slug:id>/", AlbumDetailAPIView.as_view(), name="album-detail"),
+    path("eventid/<slug:slug>/change-approval/", approve_an_item, name="change-approval-status"),
+
+    path("eventid/<slug:slug>/like-media/<slug:id>/", like_media, name="like-media"),
+
+    path("eventid/<slug:slug>/carousel-media/", edit_carousel_list, name="carousel-media"),
+
+    ## Wishes ##
+
+    path("eventid/<slug:slug>/wishes/", WishCreateListAPIView.as_view(), name="wish-list-create"),
+
 ]
 
 # {

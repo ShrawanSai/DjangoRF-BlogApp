@@ -67,3 +67,26 @@ class MediaViewer(permissions.BasePermission):
                     return True
         
         return False
+
+class AlbumViewer(permissions.BasePermission):
+    message = (
+        "You do not have access to View this Album"
+    )
+
+    def has_object_permission(self, request, view, obj):
+
+        #print("This should be working")
+        if obj.event.creator == request.user or request.user in obj.event.hosts.all():
+            #print("This should not be working - 1")
+            return True
+
+        if obj.creator == request.user:
+            #print("This should not be working - 2")
+            return True
+            
+        if obj.event.invite_event.filter(invitee = request.user).exists():
+            if obj.is_approved:
+                if request.method in permissions.SAFE_METHODS:
+                    return True
+        #print("This should not be working")
+        return False

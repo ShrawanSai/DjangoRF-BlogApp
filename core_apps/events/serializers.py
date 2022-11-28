@@ -1,4 +1,4 @@
-from .models import Event,Invitee, Invitation, Media, Album
+from .models import Event,Invitee, Invitation, Media, Album, Wish
 from rest_framework import serializers
 
 class EventCreateSerializer(serializers.ModelSerializer):
@@ -255,8 +255,9 @@ class MediaSerializer(serializers.ModelSerializer):
     def get_album_details(self,obj):
         if obj.album:
             return {
-                "eventcode":obj.event.eventcode,
-                "event name" : obj.event.title
+                "albumid":obj.album.id,
+                "album name" : obj.album.name,
+                "album owner" : obj.album.creator.get_full_name,
                 }
         else:
             return None
@@ -282,3 +283,128 @@ class MediaSerializer(serializers.ModelSerializer):
             "fullname": h.get_full_name,
             })
         return {"count": len(data), "liked_users" : data}
+
+
+class AlbumSerializer(serializers.ModelSerializer):
+
+    media = MediaSerializer(many=True, read_only=True, source = "album_of_media")
+
+    thumbnail_image_url = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+    event_details = serializers.SerializerMethodField(read_only=True)
+    owner_info = serializers.SerializerMethodField(read_only=True)
+    file_count = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Album
+        fields = [
+        "id",
+        "name",
+        "is_approved",
+        "download_count",
+        "thumbnail_image_url",
+        "created_at",
+        "event_details",
+        "owner_info",
+        "file_count",
+        "media",
+        "event",
+        "album_metadata",
+        "others"
+        ]
+        #exclude = ["pkid"]
+    
+    def get_created_at(self, obj):
+        now = obj.created_timestamp
+        formatted_date = now.strftime("%m/%d/%Y, %H:%M:%S")
+        return formatted_date
+
+    def get_thumbnail_image_url(self, obj):
+        if obj.thumbnail is not None:
+            return obj.thumbnail.image.url
+        else:
+            return None
+
+    def get_event_details(self,obj):
+        return {
+            "eventcode":obj.event.eventcode,
+            "event name" : obj.event.title
+            }
+
+    def get_owner_info(self, obj):
+        return {
+            "email": obj.creator.email,
+            "fullname": obj.creator.get_full_name,
+        }
+
+    def get_file_count(self, obj):
+        return Media.objects.filter(album=obj).count()
+
+
+class WishSerializer(serializers.ModelSerializer):
+
+
+    image_url = serializers.SerializerMethodField(read_only=True)
+    video_url = serializers.SerializerMethodField(read_only=True)
+    created_at = serializers.SerializerMethodField()
+    event_details = serializers.SerializerMethodField(read_only=True)
+    wisher_info = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Wish
+        fields = [
+        "id",
+        "wish_message",
+        "wisher_info",
+        "image_url",
+        "video_url",
+        "is_video",
+        "created_at",
+        "event_details",
+        "is_approved",
+        "others"
+        ]
+        #exclude = ["pkid"]
+    
+    def get_created_at(self, obj):
+        now = obj.created_timestamp
+        formatted_date = now.strftime("%m/%d/%Y, %H:%M:%S")
+        return formatted_date
+
+    def get_image_url(self, obj):
+        # if obj.is_video is None:
+        #     return None
+        if not obj.is_video:
+            print('eririririririri')
+            print(obj)
+            return obj.wish_image.url
+        else:
+            return None
+
+    def get_video_url(self, obj):
+        # if obj.is_video is None:
+        #     return None
+        if obj.is_video:
+            return obj.wish_video.url
+        else:
+            return None
+
+    def get_event_details(self,obj):
+        return {
+            "eventcode":obj.event.eventcode,
+            "event name" : obj.event.title
+            }
+
+    def get_wisher_info(self, obj):
+        if obj.wish_by is not None:
+            return {
+                "wish_by": obj.wish_by,
+                "user_fullname": obj.wisher.get_full_name,
+                "user_email" : obj.wisher.email
+                }
+        else:
+            return {
+                "wish_by": obj.wisher.get_full_name,
+                "user_email": obj.wisher.email,
+                "user_fullname": obj.wisher.get_full_name
+                }

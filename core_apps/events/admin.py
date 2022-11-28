@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Event,Invitee,Invitation, Album, Media
+from .models import Event,Invitee,Invitation, Album, Media, Wish
 
 
 class EventAdmin(admin.ModelAdmin):
@@ -22,13 +22,18 @@ class InvitationAdmin(admin.ModelAdmin):
 
 
 class AlbumAdmin(admin.ModelAdmin):
-    list_display = ["pkid", "id", "name","event","creator","is_approved","file_count","created_timestamp"]
+    list_display = ["pkid", "id", "name","event","creator","is_approved","created_timestamp"]
     list_filter = ["event","creator","is_approved"]
     list_display_links = ["id", "pkid"]
 
 class MediaAdmin(admin.ModelAdmin):
     list_display = ["pkid", "id","event","poster","is_approved","is_video","album","created_timestamp"]
     list_filter = ["event","poster","is_approved"]
+    list_display_links = ["id", "pkid"]
+
+class WishAdmin(admin.ModelAdmin):
+    list_display = ["pkid", "id","event","wisher","is_approved","created_timestamp"]
+    list_filter = ["event","wisher","is_approved"]
     list_display_links = ["id", "pkid"]
 
 
@@ -38,3 +43,4 @@ admin.site.register(Invitee, InviteeAdmin)
 admin.site.register(Invitation, InvitationAdmin)
 admin.site.register(Album, AlbumAdmin)
 admin.site.register(Media, MediaAdmin)
+admin.site.register(Wish, WishAdmin)
