@@ -343,7 +343,6 @@ class AlbumSerializer(serializers.ModelSerializer):
 
 class WishSerializer(serializers.ModelSerializer):
 
-
     image_url = serializers.SerializerMethodField(read_only=True)
     video_url = serializers.SerializerMethodField(read_only=True)
     created_at = serializers.SerializerMethodField()
@@ -372,18 +371,23 @@ class WishSerializer(serializers.ModelSerializer):
         return formatted_date
 
     def get_image_url(self, obj):
-        # if obj.is_video is None:
-        #     return None
+        if obj.is_video is None:
+            return None
         if not obj.is_video:
             print('eririririririri')
-            print(obj)
-            return obj.wish_image.url
+            print(dir(obj))
+            print(obj.wish_image)
+            # all_fields = Wish._meta.get_fields()
+            # #print([obj.i.name for i in all_fields])
+            # print('_'*200)
+           
+            return obj.wish_image
         else:
             return None
 
     def get_video_url(self, obj):
-        # if obj.is_video is None:
-        #     return None
+        if obj.is_video is None:
+            return None
         if obj.is_video:
             return obj.wish_video.url
         else:

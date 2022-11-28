@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser,FormParser
 
 import django.utils.timezone as tz
 
@@ -873,6 +874,7 @@ class WishCreateListAPIView(generics.ListCreateAPIView):
     serializer_class = WishSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     search_fields = ["wisher__email"]
+    parser_classes = [MultiPartParser]
 
     def get_queryset(self):
         eventcode = self.kwargs['slug']
@@ -891,33 +893,29 @@ class WishCreateListAPIView(generics.ListCreateAPIView):
         #print('creating')
         eventcode = self.kwargs['slug']
         event = Event.objects.get(slug = eventcode)
-
-
         if check_if_user_invited(event,self.request):
             creator_user = request.user
             data = request.data
             data["wisher"] = creator_user.pkid
             data["event"] = event.pkid
 
-            # if 'wish_image' in request.FILES:
-            #     if request.FILES['wish_image']:
-            #         data["is_video"] = False
-            #     else:
-            #         data["is_video"] = False
-            # elif 'wish_video' in request.FILES:
-            #     if request.FILES['wish_video']:
-            #         data["is_video"] = True
-            #     else:
-            #         data["is_video"] = False
-            # else:
-            #     data["is_video"] = False
-
-            
-            serializer = self.serializer_class(data=data, context={"request": request})
+            if 'wish_image' in request.FILES:
+                if request.FILES['wish_image']:
+                    data["is_video"] = False
+                else:
+                    data["is_video"] = None
+            elif 'wish_video' in request.FILES:
+                if request.FILES['wish_video']:
+                    data["is_video"] = True
+                else:
+                    data["is_video"] = None
+            else:
+                data["is_video"] = None
+            print(data)
+            serializer = self.get_serializer(data=data, context={"request": request})
             serializer.is_valid(raise_exception=True)
-            print(serializer)
             serializer.save(event = event,wisher = creator_user)
-
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             raise NotYourEvent
